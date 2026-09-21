@@ -525,7 +525,7 @@
                     this.uploading = true;
                     const fileName = `${Date.now()}_${this.selectedFile.name}`;
                     const { data, error } = await supabaseClient.storage
-                        .from('pea-p25-reports')
+                        .from('pea-radio-c1-reports')
                         .upload(fileName, this.selectedFile);
 
                     if (error) {
@@ -539,13 +539,13 @@
                 },
                 async fetchCloudFiles() {
                     const { data, error } = await supabaseClient.storage
-                        .from('pea-p25-reports')
+                        .from('pea-radio-c1-reports')
                         .list();
 
                     if (!error && data) {
                         this.cloudFiles = data.map(file => {
                             const { data: urlData } = supabaseClient.storage
-                                .from('pea-p25-reports')
+                                .from('pea-radio-c1-reports')
                                 .getPublicUrl(file.name);
                             return { ...file, url: urlData.publicUrl };
                         });
