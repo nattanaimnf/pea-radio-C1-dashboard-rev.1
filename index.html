@@ -10,237 +10,395 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Vue 3 for Interactive App Logic -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-slate-100 font-sans text-slate-800">
 
     <div id="app" class="min-h-screen flex flex-col">
-        <!-- HEADER / NAVIGATION -->
-        <header class="bg-purple-900 text-white shadow-lg sticky top-0 z-50">
-            <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-                <div class="flex items-center space-x-3">
-                    <i class="fa-solid font-bold text-2xl fa-tower-cell text-amber-400"></i>
+
+        <!-- ================= 1. หน้า LOGIN (ข้อ 6) ================= -->
+        <div v-if="!isLoggedIn" class="min-h-screen flex items-center justify-center bg-purple-950 p-4">
+            <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border border-purple-800">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fa-solid fa-tower-cell text-purple-800 text-3xl"></i>
+                    </div>
+                    <h1 class="text-xl font-bold text-slate-800">ระบบติดตามงาน Motorola P25</h1>
+                    <p class="text-xs text-slate-500 mt-1">กฟภ. ภาคกลาง เขต 1 (กฟก.1)</p>
+                </div>
+
+                <form @submit.prevent="handleLogin" class="space-y-4">
                     <div>
-                        <h1 class="text-lg font-bold leading-tight">ระบบติดตามงานซ่อมบำรุงวิทยุสื่อสาร Digital</h1>
-                        <p class="text-xs text-purple-200">กฟภ. ภาคกลาง เขต 1 (กฟก.1) | ระยะเวลาสัญญา: 11 ก.ย. 2569 - 11 ก.ย. 2570</p>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">อีเมลผู้ใช้งาน (Email)</label>
+                        <input v-model="loginEmail" type="email" placeholder="admin@pea.co.th" required class="w-full text-sm p-3 border border-slate-300 rounded-lg focus:outline-none focus:border-purple-600">
                     </div>
-                </div>
-                <!-- USER ROLE SYSTEM (ข้อ 6) -->
-                <div class="flex items-center space-x-3 text-sm bg-purple-800 px-3 py-1.5 rounded-lg">
-                    <i class="fa-solid fa-user-circle text-lg"></i>
                     <div>
-                        <span class="font-semibold block leading-none">{{ currentUser.name }}</span>
-                        <span class="text-[10px] text-amber-300 uppercase">{{ currentUser.role }}</span>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">รหัสผ่าน (Password)</label>
+                        <input v-model="loginPassword" type="password" placeholder="••••••••" required class="w-full text-sm p-3 border border-slate-300 rounded-lg focus:outline-none focus:border-purple-600">
                     </div>
-                    <select v-model="currentUser" class="bg-purple-900 text-xs rounded p-1 text-white border border-purple-600 focus:outline-none">
-                        <option v-for="user in users" :key="user.id" :value="user">{{ user.roleName }}</option>
-                    </select>
-                </div>
+
+                    <div v-if="loginError" class="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg">
+                        <i class="fa-solid fa-triangle-exclamation mr-1"></i> {{ loginError }}
+                    </div>
+
+                    <button type="submit" :disabled="loading" class="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold py-3 rounded-lg text-sm transition flex items-center justify-center shadow-lg">
+                        <span v-if="!loading">เข้าสู่ระบบ</span>
+                        <span v-else><i class="fa-solid fa-spinner fa-spin mr-2"></i> กำลังตรวจสอบ...</span>
+                    </button>
+                </form>
             </div>
-        </header>
+        </div>
 
-        <!-- MAIN DASHBOARD CONTENT -->
-        <main class="flex-1 max-w-7xl w-full mx-auto p-4 space-y-6">
-
-            <!-- 1. KPI SUMMARY CARDS (ข้อ 1: Total Site & Category สรุปจากเอกสารจริง) -->
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div v-for="site in sitesSummary" :key="site.type" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-bold text-slate-500 uppercase">{{ site.type }}</span>
-                        <i :class="site.icon" class="text-purple-600 text-lg"></i>
+        <!-- ================= 2. MAIN DASHBOARD (เมื่อ Login ผ่าน) ================= -->
+        <div v-else class="flex-1 flex flex-col">
+            <!-- HEADER / NAVIGATION -->
+            <header class="bg-purple-900 text-white shadow-lg sticky top-0 z-40">
+                <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <i class="fa-solid font-bold text-2xl fa-tower-cell text-amber-400"></i>
+                        <div>
+                            <h1 class="text-lg font-bold leading-tight">ระบบติดตามงานซ่อมบำรุงวิทยุสื่อสาร Motorola P25</h1>
+                            <p class="text-xs text-purple-200">กฟภ. ภาคกลาง เขต 1 (กฟก.1) | สัญญา: 11 ก.ย. 2569 - 11 ก.ย. 2570</p>
+                        </div>
                     </div>
-                    <div class="text-2xl font-extrabold text-slate-800">{{ site.count }} <span class="text-xs font-normal text-slate-500">{{ site.unit }}</span></div>
-                    <p class="text-[11px] text-emerald-600 mt-1"><i class="fa-solid fa-check-circle"></i> พร้อมใช้งานปกติ</p>
-                </div>
-            </div>
-
-            <!-- 4. CHARTS SECTION (ข้อ 4: กราฟแยกรายจังหวัดตามข้อมูลจริง) -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- กราฟภาพรวมงาน -->
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <h2 class="text-sm font-bold text-slate-700 mb-4 flex items-center">
-                        <i class="fa-solid fa-chart-pie mr-2 text-purple-600"></i> สัดส่วนสถานะงานทั้งหมด
-                    </h2>
-                    <div class="relative h-48">
-                        <canvas id="overallChart"></canvas>
+                    <!-- USER PROFILE & LOGOUT -->
+                    <div class="flex items-center space-x-3 text-sm bg-purple-800 px-3 py-1.5 rounded-lg border border-purple-700">
+                        <i class="fa-solid fa-user-circle text-lg"></i>
+                        <div>
+                            <span class="font-semibold block leading-none text-xs">{{ userEmail }}</span>
+                            <span class="text-[10px] text-amber-300 uppercase font-bold">{{ isAdmin ? 'ผู้ดูแลระบบ (Admin)' : 'เจ้าหน้าที่ (View Only)' }}</span>
+                        </div>
+                        <button @click="handleLogout" class="ml-2 bg-purple-950 hover:bg-red-700 text-white text-[11px] px-2 py-1 rounded transition">
+                            <i class="fa-solid fa-right-from-bracket"></i> ออก
+                        </button>
                     </div>
                 </div>
-                <!-- กราฟแยกตามจังหวัด -->
-                <div class="md:col-span-2 bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <h2 class="text-sm font-bold text-slate-700 mb-4 flex items-center">
-                        <i class="fa-solid fa-chart-column mr-2 text-purple-600"></i> สถิติอุปกรณ์และสถานะงานแยกตามจังหวัดในพื้นที่ (กฟก.1)
-                    </h2>
-                    <div class="relative h-48">
-                        <canvas id="provinceChart"></canvas>
+            </header>
+
+            <!-- MAIN DASHBOARD CONTENT -->
+            <main class="flex-1 max-w-7xl w-full mx-auto p-4 space-y-6">
+
+                <!-- 1. KPI SUMMARY CARDS (ข้อ 1: Total Site & Category สรุปจากเอกสารจริง) -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div v-for="site in sitesSummary" :key="site.type" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-bold text-slate-500 uppercase">{{ site.type }}</span>
+                            <i :class="site.icon" class="text-purple-600 text-lg"></i>
+                        </div>
+                        <div class="text-2xl font-extrabold text-slate-800">{{ site.count }} <span class="text-xs font-normal text-slate-500">{{ site.unit }}</span></div>
+                        <p class="text-[11px] text-emerald-600 mt-1"><i class="fa-solid fa-check-circle"></i> พร้อมใช้งานปกติ</p>
                     </div>
                 </div>
-            </div>
 
-            <!-- 3. CM WORK ORDERS & SLA TRACKER (ข้อ 3: งาน CM + CountDown SLA 1 วัน) -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <div>
-                        <h2 class="font-bold text-slate-800 flex items-center">
-                            <i class="fa-solid fa-triangle-exclamation text-amber-500 mr-2"></i> รายการแจ้งซ่อม CM (Corrective Maintenance)
+                <!-- 4. CHARTS SECTION (ข้อ 4: กราฟแยกรายจังหวัดตามข้อมูลจริง) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- กราฟภาพรวมงาน -->
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="text-sm font-bold text-slate-700 mb-4 flex items-center">
+                            <i class="fa-solid fa-chart-pie mr-2 text-purple-600"></i> สัดส่วนสถานะงานทั้งหมด
                         </h2>
-                        <p class="text-xs text-slate-500">ข้อกำหนด SLA: ต้องดำเนินการแก้ไขเสร็จสิ้นภายใน 24 ชั่วโมง (1 วัน)</p>
+                        <div class="relative h-48">
+                            <canvas id="overallChart"></canvas>
+                        </div>
                     </div>
-                    <button v-if="currentUser.role !== 'executive'" @click="openNewTicketModal" class="bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-2 rounded-lg font-medium transition flex items-center">
-                        <i class="fa-solid fa-plus mr-1"></i> เปิดใบงาน CM ใหม่
+                    <!-- กราฟแยกตามจังหวัด -->
+                    <div class="md:col-span-2 bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="text-sm font-bold text-slate-700 mb-4 flex items-center">
+                            <i class="fa-solid fa-chart-column mr-2 text-purple-600"></i> สถิติอุปกรณ์และสถานะงานแยกตามจังหวัด (กฟก.1)
+                        </h2>
+                        <div class="relative h-48">
+                            <canvas id="provinceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. CM WORK ORDERS & SLA TRACKER (ข้อ 3: งาน CM + CountDown SLA 1 วัน) -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                        <div>
+                            <h2 class="font-bold text-slate-800 flex items-center">
+                                <i class="fa-solid fa-triangle-exclamation text-amber-500 mr-2"></i> รายการแจ้งซ่อม CM (Corrective Maintenance)
+                            </h2>
+                            <p class="text-xs text-slate-500">ข้อกำหนด SLA: ต้องดำเนินการแก้ไขเสร็จสิ้นภายใน 24 ชั่วโมง (1 วัน)</p>
+                        </div>
+                        <button v-if="isAdmin" @click="openNewTicketModal" class="bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-2 rounded-lg font-medium transition flex items-center shadow-sm">
+                            <i class="fa-solid fa-plus mr-1"></i> เปิดใบงาน CM ใหม่
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 text-xs uppercase border-b">
+                                    <th class="p-3">Ticket ID</th>
+                                    <th class="p-3">สถานที่ติดตั้งอุปกรณ์</th>
+                                    <th class="p-3">อุปกรณ์ที่ขัดข้อง</th>
+                                    <th class="p-3">เวลาที่รับแจ้ง</th>
+                                    <th class="p-3">SLA คงเหลือ (กำหนด 1 วัน)</th>
+                                    <th class="p-3">สถานะ</th>
+                                    <th class="p-3 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="item in cmTickets" :key="item.id" class="hover:bg-slate-50">
+                                    <td class="p-3 font-mono font-bold text-purple-700">{{ item.id }}</td>
+                                    <td class="p-3"><span class="font-semibold block">{{ item.site }}</span><span class="text-xs text-slate-400">{{ item.province }}</span></td>
+                                    <td class="p-3"><span class="bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded border border-slate-200">{{ item.system }}</span></td>
+                                    <td class="p-3 text-xs text-slate-500">{{ item.reportedAt }}</td>
+                                    <!-- SLA COUNTDOWN BADGE -->
+                                    <td class="p-3">
+                                        <span :class="getSlaBadgeClass(item.slaHoursLeft)" class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center">
+                                            <i class="fa-regular fa-clock mr-1"></i> {{ formatSlaTime(item.slaHoursLeft) }}
+                                        </span>
+                                    </td>
+                                    <td class="p-3">
+                                        <span :class="getStatusBadgeClass(item.status)" class="text-xs px-2 py-0.5 rounded font-medium">
+                                            {{ item.status }}
+                                        </span>
+                                    </td>
+                                    <td class="p-3 text-center">
+                                        <button @click="viewTicket(item)" class="text-slate-400 hover:text-purple-600 mx-1" title="ดูรายละเอียด">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </button>
+                                        <button v-if="isAdmin" @click="openEditModal(item)" class="text-purple-600 hover:text-purple-900 mx-1 font-bold text-xs" title="แก้ไขสถานะ">
+                                            <i class="fa-solid fa-pen-to-square"></i> แก้ไข
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TABLE: รายการสถานที่ติดตั้งอุปกรณ์ทั้งหมด 30 รายการ (ตามเอกสารจริง) -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                        <div>
+                            <h2 class="font-bold text-slate-800 flex items-center">
+                                <i class="fa-solid fa-list text-purple-600 mr-2"></i> รายการสถานที่ติดตั้งอุปกรณ์ระบบวิทยุสื่อสารแบบ Digital กฟก.1 (30 รายการ)
+                            </h2>
+                            <p class="text-xs text-slate-500">ข้อมูลอ้างอิงสถานที่และจำนวนชุดอุปกรณ์ตามสัญญาจ้าง</p>
+                        </div>
+                        <div class="w-64">
+                            <input v-model="searchQuery" type="text" placeholder="ค้นหาสถานที่/อุปกรณ์..." class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:border-purple-500">
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto max-h-80">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="sticky top-0 bg-slate-100 text-slate-600 uppercase border-b">
+                                <tr>
+                                    <th class="p-2.5 text-center w-12">ลำดับ</th>
+                                    <th class="p-2.5">สถานที่ติดตั้งอุปกรณ์</th>
+                                    <th class="p-2.5">อุปกรณ์ที่ติดตั้ง</th>
+                                    <th class="p-2.5 text-center w-24">จำนวน (ชุด)</th>
+                                    <th class="p-2.5 text-center w-24">สถานะ PM</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="item in filteredInstallationSites" :key="item.id" class="hover:bg-slate-50">
+                                    <td class="p-2.5 text-center font-bold text-slate-400">{{ item.id }}</td>
+                                    <td class="p-2.5 font-medium text-slate-800">{{ item.location }}</td>
+                                    <td class="p-2.5 text-slate-600"><span class="bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-100">{{ item.equipment }}</span></td>
+                                    <td class="p-2.5 text-center font-bold text-slate-700">{{ item.quantity }}</td>
+                                    <td class="p-2.5 text-center">
+                                        <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-semibold">ปกติ (PM แล้ว)</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 2 & 5. PM STATUS & REAL CLOUD STORAGE CENTER -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- ข้อ 2: สถานะงาน PM -->
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="font-bold text-slate-800 mb-3 flex items-center">
+                            <i class="fa-solid fa-list-check text-emerald-600 mr-2"></i> สถานะแผนงานบำรุงรักษา PM (รายไตรมาส)
+                        </h2>
+                        <div class="space-y-4">
+                            <div v-for="pm in pmStatusList" :key="pm.quarter" class="border border-slate-100 p-3 rounded-lg bg-slate-50">
+                                <div class="flex justify-between text-xs font-bold mb-1">
+                                    <span>{{ pm.quarter }}</span>
+                                    <span :class="pm.percent === 100 ? 'text-emerald-600' : 'text-amber-600'">{{ pm.percent }}% เสร็จสิ้น</span>
+                                </div>
+                                <div class="w-full bg-slate-200 rounded-full h-2">
+                                    <div class="bg-emerald-500 h-2 rounded-full" :style="{ width: pm.percent + '%' }"></div>
+                                </div>
+                                <div class="flex justify-between text-[11px] text-slate-400 mt-2">
+                                    <span>เสร็จแล้ว {{ pm.done }}/{{ pm.total }} จุด</span>
+                                    <span>กำหนดการ: {{ pm.period }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ข้อ 5: คลังดาวน์โหลดรายงานบน CLOUD STORAGE จริง -->
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-2 pb-2 border-b">
+                                <div>
+                                    <h2 class="font-bold text-slate-800 text-sm flex items-center">
+                                        <i class="fa-solid fa-cloud-arrow-down text-blue-600 mr-2"></i> คลังรายงาน Cloud Storage ย้อนหลัง
+                                    </h2>
+                                    <p class="text-[11px] text-slate-500">ดาวน์โหลดเอกสารรายงานย้อนหลังได้ตลอดสัญญา 1 ปี</p>
+                                </div>
+                                <button @click="fetchCloudFiles" class="text-purple-600 hover:underline text-[11px]"><i class="fa-solid fa-rotate"></i> รีเฟรช</button>
+                            </div>
+
+                            <!-- ฟอร์มอัปโหลดไฟล์ขึ้น Cloud (แสดงเฉพาะ Admin) -->
+                            <div v-if="isAdmin" class="bg-purple-50 p-3 rounded-lg border border-purple-100 mb-4">
+                                <div class="flex flex-col sm:flex-row items-center gap-2">
+                                    <input type="file" @change="handleFileSelect" class="block w-full text-[11px] text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-purple-800 file:text-white hover:file:bg-purple-900 cursor-pointer">
+                                    <button @click="uploadFileToCloud" :disabled="!selectedFile || uploading" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
+                                        <span v-if="!uploading"><i class="fa-solid fa-upload mr-1"></i> อัปโหลด</span>
+                                        <span v-else><i class="fa-solid fa-spinner fa-spin mr-1"></i> กำลังส่ง...</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- ข้อความแจ้งเตือนสำหรับ View Only (แสดงเมื่อไม่ใช่ Admin) -->
+                            <div v-else class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 mb-4 text-center text-xs text-slate-500">
+                                <i class="fa-solid fa-lock text-amber-500 mr-1"></i> คุณอยู่ในสิทธิ์ **View Only** (สามารถดูและดาวน์โหลดไฟล์ได้เท่านั้น)
+                            </div>
+
+                            <!-- รายการไฟล์ที่มีอยู่ใน Cloud Storage -->
+                            <div class="space-y-2 max-h-48 overflow-y-auto">
+                                <div v-if="cloudFiles.length === 0" class="text-center py-6 text-slate-400 text-xs">
+                                    ยังไม่มีไฟล์ถูกอัปโหลดใน Cloud Storage
+                                </div>
+                                <div v-for="file in cloudFiles" :key="file.name" class="flex items-center justify-between p-2 hover:bg-slate-50 rounded border border-slate-100 text-xs">
+                                    <div class="flex items-center space-x-2 truncate">
+                                        <i class="fa-solid fa-file-pdf text-red-500 text-base"></i>
+                                        <div class="truncate">
+                                            <span class="font-medium text-slate-700 block truncate">{{ file.name }}</span>
+                                            <span class="text-[9px] text-slate-400">ขนาด: {{ (file.metadata ? (file.metadata.size / 1024 / 1024).toFixed(2) : 0) }} MB</span>
+                                        </div>
+                                    </div>
+                                    <a :href="file.url" target="_blank" download class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-[11px] px-2.5 py-1 rounded transition whitespace-nowrap ml-2 font-semibold">
+                                        <i class="fa-solid fa-download mr-1"></i> โหลด
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-2 border-t border-slate-100 text-right">
+                            <span class="text-[10px] text-slate-400"><i class="fa-solid fa-shield-check text-emerald-500"></i> จัดเก็บถาวรบน Supabase Cloud Storage</span>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+
+        <!-- ================= MODAL POPUP สำหรับ ADMIN แก้ไขใบงาน CM ================= -->
+        <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100 transform transition-all">
+                
+                <!-- Modal Header -->
+                <div class="bg-purple-900 text-white px-6 py-4 flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-pen-to-square text-amber-400"></i>
+                        <h3 class="font-bold text-base">จัดการใบงานแจ้งซ่อม CM</h3>
+                    </div>
+                    <button @click="closeEditModal" class="text-purple-200 hover:text-white transition">
+                        <i class="fa-solid fa-xmark text-lg"></i>
                     </button>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead>
-                            <tr class="bg-slate-100 text-slate-600 text-xs uppercase border-b">
-                                <th class="p-3">Ticket ID</th>
-                                <th class="p-3">สถานที่ติดตั้งอุปกรณ์</th>
-                                <th class="p-3">อุปกรณ์ที่ขัดข้อง</th>
-                                <th class="p-3">เวลาที่รับแจ้ง</th>
-                                <th class="p-3">SLA คงเหลือ (กำหนด 1 วัน)</th>
-                                <th class="p-3">สถานะ</th>
-                                <th class="p-3 text-center">จัดการ</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            <tr v-for="item in cmTickets" :key="item.id" class="hover:bg-slate-50">
-                                <td class="p-3 font-mono font-bold text-purple-700">{{ item.id }}</td>
-                                <td class="p-3"><span class="font-semibold block">{{ item.site }}</span><span class="text-xs text-slate-400">{{ item.province }}</span></td>
-                                <td class="p-3"><span class="bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded border border-slate-200">{{ item.system }}</span></td>
-                                <td class="p-3 text-xs text-slate-500">{{ item.reportedAt }}</td>
-                                <!-- SLA COUNTDOWN BADGE -->
-                                <td class="p-3">
-                                    <span :class="getSlaBadgeClass(item.slaHoursLeft)" class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center">
-                                        <i class="fa-regular fa-clock mr-1"></i> {{ formatSlaTime(item.slaHoursLeft) }}
-                                    </span>
-                                </td>
-                                <td class="p-3">
-                                    <span :class="getStatusBadgeClass(item.status)" class="text-xs px-2 py-0.5 rounded font-medium">
-                                        {{ item.status }}
-                                    </span>
-                                </td>
-                                <td class="p-3 text-center">
-                                    <button @click="viewTicket(item)" class="text-slate-400 hover:text-purple-600 mx-1"><i class="fa-solid fa-eye"></i></button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
-            <!-- TABLE: รายการสถานที่ติดตั้งอุปกรณ์ทั้งหมด 30 รายการ (ตามเอกสารจริง) -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <div>
-                        <h2 class="font-bold text-slate-800 flex items-center">
-                            <i class="fa-solid fa-list text-purple-600 mr-2"></i> รายการสถานที่ติดตั้งอุปกรณ์ระบบวิทยุสื่อสารแบบ Digital กฟก.1 (30 รายการ)
-                        </h2>
-                        <p class="text-xs text-slate-500">ข้อมูลอ้างอิงสถานที่และจำนวนชุดอุปกรณ์ตามสัญญาจ้าง</p>
+                <!-- Modal Body -->
+                <div class="p-6 space-y-4">
+                    <!-- ข้อมูลสรุปใบงาน -->
+                    <div class="bg-purple-50/60 rounded-xl p-3.5 border border-purple-100 space-y-1">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-mono font-bold text-purple-700">{{ editingTicket?.id }}</span>
+                            <span :class="getStatusBadgeClass(editingTicket?.status)" class="text-[10px] px-2 py-0.5 rounded font-medium">
+                                {{ editingTicket?.status }}
+                            </span>
+                        </div>
+                        <p class="text-sm font-bold text-slate-800">{{ editingTicket?.site }}</p>
+                        <p class="text-xs text-slate-500"><i class="fa-solid fa-microchip mr-1"></i> {{ editingTicket?.system }}</p>
                     </div>
-                    <div class="w-64">
-                        <input v-model="searchQuery" type="text" placeholder="ค้นหาสถานที่/อุปกรณ์..." class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:border-purple-500">
-                    </div>
-                </div>
-                <div class="overflow-x-auto max-h-80">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <thead class="sticky top-0 bg-slate-100 text-slate-600 uppercase border-b">
-                            <tr>
-                                <th class="p-2.5 text-center w-12">ลำดับ</th>
-                                <th class="p-2.5">สถานที่ติดตั้งอุปกรณ์</th>
-                                <th class="p-2.5">อุปกรณ์ที่ติดตั้ง</th>
-                                <th class="p-2.5 text-center w-24">จำนวน (ชุด)</th>
-                                <th class="p-2.5 text-center w-24">สถานะ PM</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            <tr v-for="item in filteredInstallationSites" :key="item.id" class="hover:bg-slate-50">
-                                <td class="p-2.5 text-center font-bold text-slate-400">{{ item.id }}</td>
-                                <td class="p-2.5 font-medium text-slate-800">{{ item.location }}</td>
-                                <td class="p-2.5 text-slate-600"><span class="bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-100">{{ item.equipment }}</span></td>
-                                <td class="p-2.5 text-center font-bold text-slate-700">{{ item.quantity }}</td>
-                                <td class="p-2.5 text-center">
-                                    <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-semibold">ปกติ (PM แล้ว)</span>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
-            <!-- 2 & 5. PM STATUS & REPORT DOWNLOAD CENTER -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- ข้อ 2: สถานะงาน PM -->
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <h2 class="font-bold text-slate-800 mb-3 flex items-center">
-                        <i class="fa-solid fa-list-check text-emerald-600 mr-2"></i> สถานะแผนงานบำรุงรักษา PM (รายไตรมาส)
-                    </h2>
-                    <div class="space-y-4">
-                        <div v-for="pm in pmStatusList" :key="pm.quarter" class="border border-slate-100 p-3 rounded-lg bg-slate-50">
-                            <div class="flex justify-between text-xs font-bold mb-1">
-                                <span>{{ pm.quarter }}</span>
-                                <span :class="pm.percent === 100 ? 'text-emerald-600' : 'text-amber-600'">{{ pm.percent }}% เสร็จสิ้น</span>
-                            </div>
-                            <div class="w-full bg-slate-200 rounded-full h-2">
-                                <div class="bg-emerald-500 h-2 rounded-full" :style="{ width: pm.percent + '%' }"></div>
-                            </div>
-                            <div class="flex justify-between text-[11px] text-slate-400 mt-2">
-                                <span>เสร็จแล้ว {{ pm.done }}/{{ pm.total }} จุด</span>
-                                <span>กำหนดการ: {{ pm.period }}</span>
-                            </div>
+                    <!-- ฟอร์มแก้ไขสถานะ -->
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">สถานะงานซ่อมบำรุง</label>
+                            <select v-model="editForm.status" class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:border-purple-600 bg-white">
+                                <option value="รอดำเนินการ">🟠 รอดำเนินการ (Pending)</option>
+                                <option value="กำลังดำเนินการ">🔵 กำลังดำเนินการ (In Progress)</option>
+                                <option value="เสร็จสิ้น">🟢 เสร็จสิ้น (Completed)</option>
+                                <option value="เกิน SLA">🔴 เกิน SLA (SLA Breached)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">ชั่วโมง SLA คงเหลือ (ชั่วโมง)</label>
+                            <input v-model.number="editForm.slaHoursLeft" type="number" step="0.5" class="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:border-purple-600">
+                            <p class="text-[10px] text-slate-400 mt-1">* หากเปลี่ยนสถานะเป็น "เสร็จสิ้น" ระบบจะปรับค่า SLA เป็น 0 โดยอัตโนมัติ</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">บันทึกความคืบหน้า / หมายเหตุงานซ่อม</label>
+                            <textarea v-model="editForm.note" rows="3" placeholder="ระบุการดำเนินการ เช่น เข้าตรวจสอบอุปกรณ์ Power Supply และเปลี่ยนอะไหล่เรียบร้อยแล้ว..." class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:border-purple-600 resize-none"></textarea>
                         </div>
                     </div>
                 </div>
 
-                <!-- ข้อ 5: คลังดาวน์โหลดรายงาน (OneDrive/Storage Archive) -->
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                    <div>
-                        <h2 class="font-bold text-slate-800 mb-1 flex items-center">
-                            <i class="fa-solid fa-cloud-arrow-down text-blue-600 mr-2"></i> คลังรายงาน PM/CM ย้อนหลังตลอดอายุสัญญา
-                        </h2>
-                        <p class="text-xs text-slate-500 mb-4">เชื่อมต่อ Cloud Storage สำหรับดาวน์โหลดเอกสาร PDF/Excel ย้อนหลังได้ตลอดสัญญา</p>
-                        
-                        <div class="space-y-2">
-                            <div v-for="report in reportFiles" :key="report.name" class="flex justify-between items-center p-2.5 hover:bg-slate-50 rounded border border-slate-100 text-xs">
-                                <div class="flex items-center space-x-2">
-                                    <i :class="report.type === 'PDF' ? 'fa-file-pdf text-red-500' : 'fa-file-excel text-emerald-600'" class="text-base"></i>
-                                    <div>
-                                        <span class="font-medium text-slate-700 block">{{ report.name }}</span>
-                                        <span class="text-[10px] text-slate-400">{{ report.date }} | {{ report.size }}</span>
-                                    </div>
-                                </div>
-                                <a :href="report.downloadUrl" target="_blank" class="bg-slate-100 hover:bg-purple-100 text-purple-700 px-2.5 py-1 rounded text-xs transition">
-                                    <i class="fa-solid fa-download mr-1"></i> โหลด
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mt-4 pt-3 border-t border-slate-100 text-right">
-                        <span class="text-[11px] text-slate-400"><i class="fa-solid fa-shield-check text-emerald-500"></i> จัดเก็บไฟล์ถาวรบน Cloud Storage</span>
-                    </div>
+                <!-- Modal Footer -->
+                <div class="bg-slate-50 px-6 py-3.5 flex justify-end space-x-2 border-t border-slate-100">
+                    <button @click="closeEditModal" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition">
+                        ยกเลิก
+                    </button>
+                    <button @click="saveTicketStatus" class="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold rounded-lg shadow-md transition flex items-center">
+                        <i class="fa-solid fa-floppy-disk mr-1.5"></i> บันทึกการเปลี่ยนแปลง
+                    </button>
                 </div>
-            </div>
 
-        </main>
+            </div>
+        </div>
+
     </div>
 
     <!-- JAVASCRIPT LOGIC -->
     <script>
+        // 🔑 นำค่า API Keys จาก Supabase มาใส่ตรงนี้ 🔑
+        const SUPABASE_URL = 'https://ixbfveuhuohdwkqxfwmy.supabase.co';  
+        const SUPABASE_KEY = 'sb_publishable_-iZ2fmCz7at_4sMawl8vQA_m5-ROZSv';      
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
         const { createApp } = Vue;
 
         createApp({
             data() {
                 return {
-                    searchQuery: '',
-                    // ข้อ 6: ผู้ใช้งาน & สิทธิ์
-                    users: [
-                        { id: 1, name: 'คุณวิศวกร ผู้ดูแลระบบ', role: 'admin', roleName: 'ผู้ดูแลระบบ (Admin)' },
-                        { id: 2, name: 'เจ้าหน้าที่ กฟภ.1', role: 'officer', roleName: 'เจ้าหน้าที่ กฟภ. (Officer)' },
-                        { id: 3, name: 'ผู้บริหาร กฟภ.', role: 'executive', roleName: 'ผู้บริหาร (Executive View)' }
-                    ],
-                    currentUser: null,
+                    // Auth State
+                    isLoggedIn: false,
+                    loginEmail: '',
+                    loginPassword: '',
+                    loginError: '',
+                    userEmail: '',
+                    loading: false,
 
-                    // ข้อ 1: จำนวน Total Sites คำนวณสรุปจากรูปเอกสารจริง
+                    // Search Query
+                    searchQuery: '',
+
+                    // Storage
+                    selectedFile: null,
+                    uploading: false,
+                    cloudFiles: [],
+
+                    // Edit Modal State
+                    showEditModal: false,
+                    editingTicket: null,
+                    editForm: {
+                        status: '',
+                        slaHoursLeft: 0,
+                        note: ''
+                    },
+
+                    // สรุปอุปกรณ์
                     sitesSummary: [
                         { type: 'Base Station', count: 18, unit: 'สถานี', icon: 'fa-solid fa-tower-cell' },
                         { type: 'Dispatch Console', count: 8, unit: 'ชุด', icon: 'fa-solid fa-headset' },
@@ -249,7 +407,7 @@
                         { type: 'Power & Battery', count: 1, unit: 'ระบบ', icon: 'fa-solid fa-car-battery' },
                     ],
 
-                    // รายการสถานที่ติดตั้งจริง 30 รายการ จากรูปภาพ
+                    // รายการสถานที่ 30 แห่ง
                     installationSites: [
                         { id: 1, location: 'ศูนย์ควบคุมการจ่ายไฟฟ้า เขต 1 ภาคกลาง (จังหวัดพระนครศรีอยุธยา)', equipment: 'Digital Simulcast Radio System', quantity: 1 },
                         { id: 2, location: 'ศูนย์ควบคุมการจ่ายไฟฟ้า เขต 1 ภาคกลาง (จังหวัดพระนครศรีอยุธยา)', equipment: 'Voice Record System', quantity: 1 },
@@ -283,30 +441,28 @@
                         { id: 30, location: 'สฟฟ.อ่างทอง 2', equipment: 'Base Station with Network Equipment', quantity: 1 }
                     ],
 
-                    // ข้อ 3: ตารางงาน CM และระบบคำนวณ SLA (1 วัน)
+                    // รายการ CM
                     cmTickets: [
-                        { id: 'CM-2026-001', site: 'ศูนย์ควบคุมการจ่ายไฟฟ้า เขต 1', province: 'พระนครศรีอยุธยา', system: 'Dispatch Console', reportedAt: '2026-09-20 08:30', slaHoursLeft: 2.5, status: 'กำลังดำเนินการ' },
-                        { id: 'CM-2026-002', site: 'กฟจ.ปทุมธานี', province: 'ปทุมธานี', system: 'Base Station', reportedAt: '2026-09-20 14:00', slaHoursLeft: 8.0, status: 'รอดำเนินการ' },
-                        { id: 'CM-2026-003', site: 'สฟฟ.กบินทร์บุรี 1', province: 'ปราจีนบุรี', system: 'Base Station', reportedAt: '2026-09-19 10:00', slaHoursLeft: -3.0, status: 'เกิน SLA' },
-                        { id: 'CM-2026-004', site: 'กฟจ.สระบุรี', province: 'สระบุรี', system: 'Base Station', reportedAt: '2026-09-18 09:00', slaHoursLeft: 0, status: 'เสร็จสิ้น' }
+                        { id: 'CM-2026-001', site: 'ศูนย์ควบคุมการจ่ายไฟฟ้า เขต 1', province: 'พระนครศรีอยุธยา', system: 'Dispatch Console', reportedAt: '2026-09-20 08:30', slaHoursLeft: 2.5, status: 'กำลังดำเนินการ', note: '' },
+                        { id: 'CM-2026-002', site: 'กฟจ.ปทุมธานี', province: 'ปทุมธานี', system: 'Base Station', reportedAt: '2026-09-20 14:00', slaHoursLeft: 8.0, status: 'รอดำเนินการ', note: '' },
+                        { id: 'CM-2026-003', site: 'สฟฟ.กบินทร์บุรี 1', province: 'ปราจีนบุรี', system: 'Base Station', reportedAt: '2026-09-19 10:00', slaHoursLeft: -3.0, status: 'เกิน SLA', note: '' },
+                        { id: 'CM-2026-004', site: 'กฟจ.สระบุรี', province: 'สระบุรี', system: 'Base Station', reportedAt: '2026-09-18 09:00', slaHoursLeft: 0, status: 'เสร็จสิ้น', note: '' }
                     ],
 
-                    // ข้อ 2: สถานะงาน PM
+                    // รายการ PM
                     pmStatusList: [
                         { quarter: 'Q1 (ก.ย. 69 - ธ.ค. 69)', percent: 100, done: 30, total: 30, period: '11 ก.ย. 69 - 31 ธ.ค. 69' },
                         { quarter: 'Q2 (ม.ค. 70 - มี.ค. 70)', percent: 40, done: 12, total: 30, period: '1 ม.ค. 70 - 31 มี.ค. 70' },
                         { quarter: 'Q3 (เม.ย. 70 - มิ.ย. 70)', percent: 0, done: 0, total: 30, period: '1 เม.ย. 70 - 30 มิ.ย. 70' },
-                    ],
-
-                    // ข้อ 5: ไฟล์รายงานสำหรับดาวน์โหลด
-                    reportFiles: [
-                        { name: 'รายงาน PM ประจำไตรมาส 1/2026 (กฟก.1).pdf', date: '15 ธ.ค. 2026', size: '4.2 MB', type: 'PDF', downloadUrl: '#' },
-                        { name: 'สรุปประวัติใบงาน CM เดือน มกราคม 2027.xlsx', date: '01 ก.พ. 2027', size: '1.1 MB', type: 'EXCEL', downloadUrl: '#' },
-                        { name: 'ผลการทดสอบระบบไฟฟ้าและแบตเตอรี่สำรอง MSO อยุธยา.pdf', date: '20 พ.ย. 2026', size: '8.5 MB', type: 'PDF', downloadUrl: '#' }
                     ]
                 }
             },
             computed: {
+                // เช็คสิทธิ์ Admin จากคำว่า admin หรืออีเมล admin@pea.co.th
+                isAdmin() {
+                    if (!this.userEmail) return false;
+                    return this.userEmail.includes('admin') || this.userEmail === 'admin@pea.co.th';
+                },
                 filteredInstallationSites() {
                     if (!this.searchQuery) return this.installationSites;
                     const query = this.searchQuery.toLowerCase();
@@ -316,13 +472,116 @@
                     );
                 }
             },
-            created() {
-                this.currentUser = this.users[0];
-            },
-            mounted() {
-                this.initCharts();
+            async created() {
+                // เช็ค Session Login
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session) {
+                    this.isLoggedIn = true;
+                    this.userEmail = session.user.email;
+                    this.$nextTick(() => {
+                        this.initCharts();
+                        this.fetchCloudFiles();
+                    });
+                }
             },
             methods: {
+                // Login / Logout
+                async handleLogin() {
+                    this.loading = true;
+                    this.loginError = '';
+                    const { data, error } = await supabaseClient.auth.signInWithPassword({
+                        email: this.loginEmail,
+                        password: this.loginPassword
+                    });
+
+                    if (error) {
+                        this.loginError = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+                    } else {
+                        this.isLoggedIn = true;
+                        this.userEmail = data.user.email;
+                        this.$nextTick(() => {
+                            this.initCharts();
+                            this.fetchCloudFiles();
+                        });
+                    }
+                    this.loading = false;
+                },
+                async handleLogout() {
+                    await supabaseClient.auth.signOut();
+                    this.isLoggedIn = false;
+                },
+
+                // Cloud Storage System
+                handleFileSelect(event) {
+                    this.selectedFile = event.target.files[0];
+                },
+                async uploadFileToCloud() {
+                    if (!this.isAdmin) {
+                        alert('คุณไม่มีสิทธิ์อัปโหลดไฟล์');
+                        return;
+                    }
+                    if (!this.selectedFile) return;
+
+                    this.uploading = true;
+                    const fileName = `${Date.now()}_${this.selectedFile.name}`;
+                    const { data, error } = await supabaseClient.storage
+                        .from('pea-p25-reports')
+                        .upload(fileName, this.selectedFile);
+
+                    if (error) {
+                        alert('อัปโหลดล้มเหลว: ' + error.message);
+                    } else {
+                        alert('อัปโหลดไฟล์เรียบร้อยแล้ว!');
+                        this.selectedFile = null;
+                        this.fetchCloudFiles();
+                    }
+                    this.uploading = false;
+                },
+                async fetchCloudFiles() {
+                    const { data, error } = await supabaseClient.storage
+                        .from('pea-p25-reports')
+                        .list();
+
+                    if (!error && data) {
+                        this.cloudFiles = data.map(file => {
+                            const { data: urlData } = supabaseClient.storage
+                                .from('pea-p25-reports')
+                                .getPublicUrl(file.name);
+                            return { ...file, url: urlData.publicUrl };
+                        });
+                    }
+                },
+
+                // Modal Control for Admin CM Edit
+                openEditModal(item) {
+                    if (!this.isAdmin) return;
+                    this.editingTicket = item;
+                    this.editForm.status = item.status;
+                    this.editForm.slaHoursLeft = item.slaHoursLeft;
+                    this.editForm.note = item.note || '';
+                    this.showEditModal = true;
+                },
+                closeEditModal() {
+                    this.showEditModal = false;
+                    this.editingTicket = null;
+                },
+                saveTicketStatus() {
+                    if (!this.editingTicket) return;
+
+                    this.editingTicket.status = this.editForm.status;
+                    this.editingTicket.note = this.editForm.note;
+
+                    if (this.editForm.status === 'เสร็จสิ้น') {
+                        this.editingTicket.slaHoursLeft = 0;
+                    } else {
+                        this.editingTicket.slaHoursLeft = this.editForm.slaHoursLeft;
+                    }
+
+                    alert(`อัปเดตใบงาน ${this.editingTicket.id} สำเร็จ!`);
+                    this.closeEditModal();
+                },
+
+                // Helpers
                 formatSlaTime(hours) {
                     if (hours < 0) return `เกินกำหนด ${Math.abs(hours)} ชม.`;
                     if (hours === 0) return 'ดำเนินการเสร็จแล้ว';
@@ -340,14 +599,11 @@
                     if (status === 'เกิน SLA') return 'bg-red-100 text-red-700';
                     return 'bg-slate-100 text-slate-700';
                 },
-                openNewTicketModal() {
-                    alert('เปิดหน้าต่างบันทึกใบงาน CM ใหม่');
-                },
-                viewTicket(item) {
-                    alert(`ดูรายละเอียดใบงาน: ${item.id}\nสถานที่: ${item.site}`);
-                },
+                openNewTicketModal() { alert('เปิดหน้าต่างบันทึกใบงาน CM ใหม่'); },
+                viewTicket(item) { alert(`ใบงาน: ${item.id}\nสถานที่: ${item.site}\nหมายเหตุ: ${item.note || '-'}`); },
+
+                // Chart Init
                 initCharts() {
-                    // กราฟที่ 1: Overall Doughnut Chart
                     new Chart(document.getElementById('overallChart'), {
                         type: 'doughnut',
                         data: {
@@ -360,7 +616,6 @@
                         options: { responsive: true, maintainAspectRatio: false }
                     });
 
-                    // กราฟที่ 2: Province Bar Chart (ปรับข้อมูลพื้นที่จริง)
                     new Chart(document.getElementById('provinceChart'), {
                         type: 'bar',
                         data: {
